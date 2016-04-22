@@ -1,14 +1,23 @@
 module htmllog;
+import std.algorithm : among;
+import std.array;
+import std.conv : to;
 import std.experimental.logger;
+import std.format : format, formattedWrite;
+import std.stdio : File;
+import std.traits : EnumMembers;
 import std.typecons : tuple;
 
 class HTMLLogger : Logger {
-	private import std.stdio : File;
 	File handle;
 
-	this(string logpath, LogLevel lv) {
+	this(string logpath, LogLevel lv = LogLevel.all) @safe {
 		super(lv);
-		handle = File(logpath, "w");
+		handle.open(logpath, "w");
+	}
+	this(File file, LogLevel lv = LogLevel.all) @safe {
+		super(lv);
+		handle = file;
 	}
 	~this() {
 		if (handle.isOpen) {
@@ -18,26 +27,19 @@ class HTMLLogger : Logger {
 		}
 	}
 	void init() @trusted {
-		import std.conv : to;
-		import std.algorithm : among;
-		import std.traits : EnumMembers;
 		static bool initialized = false;
 		if (initialized)
 			return;
-		handle.writef(HTMLTemplate.header, logLevel.among!(EnumMembers!LogLevel));
+		formattedWrite(handle.lockingTextWriter(), HTMLTemplate.header, logLevel.among!(EnumMembers!LogLevel)-1);
 		initialized = true;
 	}
 	override void writeLogMsg(ref LogEntry payLoad) @trusted {
-		import std.string : format;
-		import std.array;
 		init();
-		handle.writefln(HTMLTemplate.entry, payLoad.logLevel, payLoad.timestamp.toISOExtString(), payLoad.timestamp.toSimpleString(), payLoad.moduleName, payLoad.threadId, htmlEscape(payLoad.msg).replace("\n", "<br />"));
+		formattedWrite(handle.lockingTextWriter(), HTMLTemplate.entry, payLoad.logLevel, payLoad.timestamp.toISOExtString(), payLoad.timestamp.toSimpleString(), payLoad.moduleName, payLoad.threadId, htmlEscape(payLoad.msg).replace("\n", "<br />"));
 		handle.flush();
 	}
 }
 private char[] htmlEscape(inout(char[]) text) @trusted nothrow {
-	import std.string : format;
-	import std.array : appender;
 	auto output = appender!(char[])();
 	foreach (character; text) {
 		switch (character) {
