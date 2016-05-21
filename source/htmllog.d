@@ -3,7 +3,9 @@ import std.algorithm : among;
 import std.array;
 import std.conv : to;
 import std.experimental.logger;
+import std.exception : assumeWontThrow;
 import std.format : format, formattedWrite;
+import std.range : put;
 import std.stdio : File;
 import std.traits : EnumMembers;
 import std.typecons : tuple;
@@ -14,49 +16,52 @@ class HTMLLogger : Logger {
 	this(string logpath, LogLevel lv = LogLevel.all) @safe {
 		super(lv);
 		handle.open(logpath, "w");
+		init();
 	}
 	this(File file, LogLevel lv = LogLevel.all) @safe {
 		super(lv);
 		handle = file;
+		init();
 	}
-	~this() {
+	~this() @safe {
 		if (handle.isOpen) {
-			handle.write(HTMLTemplate.footer);
-			handle.flush();
+			writeFmt(HTMLTemplate.footer);
 			handle.close();
 		}
 	}
-	void init() @trusted {
+	void init() @safe {
 		static bool initialized = false;
 		if (initialized)
 			return;
-		formattedWrite(handle.lockingTextWriter(), HTMLTemplate.header, logLevel.among!(EnumMembers!LogLevel)-1);
+		writeFmt(HTMLTemplate.header, logLevel.among!(EnumMembers!LogLevel)-1);
 		initialized = true;
 	}
-	override void writeLogMsg(ref LogEntry payLoad) @trusted {
-		init();
-		formattedWrite(handle.lockingTextWriter(), HTMLTemplate.entry, payLoad.logLevel, payLoad.timestamp.toISOExtString(), payLoad.timestamp.toSimpleString(), payLoad.moduleName, payLoad.threadId, htmlEscape(payLoad.msg).replace("\n", "<br />"));
+	override void writeLogMsg(ref LogEntry payLoad) @safe {
+		writeFmt(HTMLTemplate.entry, payLoad.logLevel, payLoad.timestamp.toISOExtString(), payLoad.timestamp.toSimpleString(), payLoad.moduleName, payLoad.line, payLoad.threadId, HtmlEscaper(payLoad.msg));
+	}
+	void writeFmt(T...)(string fmt, T args) @trusted {
+		formattedWrite(handle.lockingTextWriter(), fmt, args);
 		handle.flush();
 	}
 }
-private char[] htmlEscape(inout(char[]) text) @trusted nothrow {
-	auto output = appender!(char[])();
-	foreach (character; text) {
-		switch (character) {
-			default: output ~= character; break;
-			case 0: .. case 9:
-			case 11: .. case 13:
-			case 14: .. case 31:
-				try {
-					output ~= format("&#%d", cast(uint)character);
-				} catch (Exception) {}
-				break;
-			case '&': output ~= "&amp;"; break;
-			case '<': output ~= "&lt;"; break;
-			case '>': output ~= "&gt;"; break;
+struct HtmlEscaper {
+	string data;
+	void toString(T)(T sink) const {
+		foreach (character; data) {
+			switch (character) {
+				default: sink.put(character); break;
+				case 0: .. case 9:
+				case 11: .. case 12:
+				case 14: .. case 31:
+					assumeWontThrow(formattedWrite(sink, "&#%d", character.to!uint));
+					break;
+				case '\n', '\r': sink("<br/>"); break;
+				case '&': sink("&amp;"); break;
+				case '<': sink("&lt;"); break;
+				case '>': sink("&gt;"); break;
+			}
 		}
 	}
-	return output.data;
 }
 enum HTMLTemplate = tuple!("header", "footer", "entry")(
 `<html>
@@ -154,4 +159,4 @@ enum HTMLTemplate = tuple!("header", "footer", "entry")(
 `		</div>
 	</body>
 </html>`,
-`		<div class="%s"><time datetime="%s">%s</time><div class="source">%s</div><div class="threadName">%s</div><div class="message">%s</div></div>`);
+`		<div class="%s"><time datetime="%s">%s</time><div class="source">%s:%s</div><div class="threadName">%s</div><div class="message">%s</div></div>`);
