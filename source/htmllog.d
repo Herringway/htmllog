@@ -29,17 +29,17 @@ class HTMLLogger : Logger {
 			handle.close();
 		}
 	}
-	void init() @safe {
+	override public void writeLogMsg(ref LogEntry payLoad) @safe {
+		writeFmt(HTMLTemplate.entry, payLoad.logLevel, payLoad.timestamp.toISOExtString(), payLoad.timestamp.toSimpleString(), payLoad.moduleName, payLoad.line, payLoad.threadId, HtmlEscaper(payLoad.msg));
+	}
+	private void init() @safe {
 		static bool initialized = false;
 		if (initialized)
 			return;
 		writeFmt(HTMLTemplate.header, logLevel.among!(EnumMembers!LogLevel)-1);
 		initialized = true;
 	}
-	override void writeLogMsg(ref LogEntry payLoad) @safe {
-		writeFmt(HTMLTemplate.entry, payLoad.logLevel, payLoad.timestamp.toISOExtString(), payLoad.timestamp.toSimpleString(), payLoad.moduleName, payLoad.line, payLoad.threadId, HtmlEscaper(payLoad.msg));
-	}
-	void writeFmt(T...)(string fmt, T args) @trusted {
+	private void writeFmt(T...)(string fmt, T args) @trusted {
 		formattedWrite(handle.lockingTextWriter(), fmt, args);
 		handle.flush();
 	}
