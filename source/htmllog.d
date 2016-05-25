@@ -63,7 +63,7 @@ struct HtmlEscaper {
 		}
 	}
 }
-enum HTMLTemplate = tuple!("header", "footer", "entry")(
+private enum HTMLTemplate = tuple!("header", "entry", "footer")(
 `<html>
 	<head>
 		<title>HTML Log</title>
@@ -156,7 +156,7 @@ enum HTMLTemplate = tuple!("header", "footer", "entry")(
 		</form>
 		<div class="log">
 		<div style="position: relative;"><div class="time">Time</div><div class="source">Source</div><div class="threadName">Thread</div><div class="message">Message</div></div>`,
+`		<div class="%s"><time datetime="%s">%s</time><div class="source">%s:%s</div><div class="threadName">%s</div><div class="message">%s</div></div>`,
 `		</div>
 	</body>
-</html>`,
-`		<div class="%s"><time datetime="%s">%s</time><div class="source">%s:%s</div><div class="threadName">%s</div><div class="message">%s</div></div>`);
+</html>`);
