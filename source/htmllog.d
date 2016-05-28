@@ -153,7 +153,7 @@ private enum HTMLTemplate = tuple!("header", "entry", "footer")(
 			</form>
 		</footer>
 		<script language="JavaScript">
-			for (var i = 0; i < 1; i++) {
+			for (var i = 0; i < %s; i++) {
 				document.styleSheets[0].cssRules[i].style.display = "none";
 				document.getElementById("level" + i).checked = false;
 			}
