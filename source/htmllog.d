@@ -13,15 +13,15 @@ import std.typecons : tuple;
 class HTMLLogger : Logger {
 	File handle;
 
-	this(string logpath, LogLevel lv = LogLevel.all) @safe {
+	this(string logpath, LogLevel lv = LogLevel.all, LogLevel defaultMinDisplayLevel = LogLevel.all) @safe {
 		super(lv);
 		handle.open(logpath, "w");
-		init();
+		init(defaultMinDisplayLevel);
 	}
-	this(File file, LogLevel lv = LogLevel.all) @safe {
+	this(File file, LogLevel lv = LogLevel.all, LogLevel defaultMinDisplayLevel = LogLevel.all) @safe {
 		super(lv);
 		handle = file;
-		init();
+		init(defaultMinDisplayLevel);
 	}
 	~this() @safe {
 		if (handle.isOpen) {
@@ -33,11 +33,11 @@ class HTMLLogger : Logger {
 		if (payLoad.logLevel >= logLevel)
 			writeFmt(HTMLTemplate.entry, payLoad.logLevel, payLoad.timestamp.toISOExtString(), payLoad.timestamp.toSimpleString(), payLoad.moduleName, payLoad.line, payLoad.threadId, HtmlEscaper(payLoad.msg));
 	}
-	private void init() @safe {
+	private void init(LogLevel minDisplayLevel) @safe {
 		static bool initialized = false;
 		if (initialized)
 			return;
-		writeFmt(HTMLTemplate.header, logLevel.among!(EnumMembers!LogLevel)-1);
+		writeFmt(HTMLTemplate.header, minDisplayLevel.among!(EnumMembers!LogLevel)-1);
 		initialized = true;
 	}
 	private void writeFmt(T...)(string fmt, T args) @trusted {
