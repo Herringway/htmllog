@@ -30,7 +30,8 @@ class HTMLLogger : Logger {
 		}
 	}
 	override public void writeLogMsg(ref LogEntry payLoad) @safe {
-		writeFmt(HTMLTemplate.entry, payLoad.logLevel, payLoad.timestamp.toISOExtString(), payLoad.timestamp.toSimpleString(), payLoad.moduleName, payLoad.line, payLoad.threadId, HtmlEscaper(payLoad.msg));
+		if (payLoad.logLevel >= logLevel)
+			writeFmt(HTMLTemplate.entry, payLoad.logLevel, payLoad.timestamp.toISOExtString(), payLoad.timestamp.toSimpleString(), payLoad.moduleName, payLoad.line, payLoad.threadId, HtmlEscaper(payLoad.msg));
 	}
 	private void init() @safe {
 		static bool initialized = false;
@@ -44,7 +45,19 @@ class HTMLLogger : Logger {
 		handle.flush();
 	}
 }
-struct HtmlEscaper {
+@safe unittest {
+	auto logger = new HTMLLogger("test.html", LogLevel.trace);
+	logger.fatalHandler = () {};
+	foreach (i; 0..100) {
+		logger.trace("Example - Trace");
+		logger.info("Example - Info");
+		logger.warning("Example - Warning");
+		logger.error("Example - Error");
+		logger.critical("Example - Critical");
+		logger.fatal("Example - Fatal");
+	}
+}
+private struct HtmlEscaper {
 	string data;
 	void toString(T)(T sink) const {
 		foreach (character; data) {
@@ -64,99 +77,96 @@ struct HtmlEscaper {
 	}
 }
 private enum HTMLTemplate = tuple!("header", "entry", "footer")(
-`<html>
+`<!DOCTYPE html>
+<html>
 	<head>
 		<title>HTML Log</title>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 		<style content="text/css">
-			.trace        { position: relative; color: lightgray; display: none; }
-			.info         { position: relative; color: black; }
-			.warning      { position: relative; color: darkorange; }
-			.error        { position: relative; color: darkred; }
-			.critical     { position: relative; color: crimson; }
-			.fatal        { position: relative; color: red; }
-			body          { font-family: monospace; font-size: 10pt; margin: 0px; }
+			.trace        { color: lightgray; }
+			.info         { color: black; }
+			.warning      { color: darkorange; }
+			.error        { color: darkred; }
+			.critical     { color: crimson; }
+			.fatal        { color: red; }
 
-			.log          { margin: 0px 10pt 36px 10pt; }
+			body          { font-size: 10pt; margin: 0px; }
+			.logmessage   { font-family: monospace; margin-left: 10pt; margin-right: 10pt; }
+			.log          { margin-top: 15pt; margin-bottom: 15pt; }
 
 			time, div.time {
 				display: inline-block;
-				vertical-align: top;
 				width: 180pt;
 			}
 			div.source {
 				display: inline-block;
-				vertical-align: top;
 				width: 200pt;
 			}
 			div.threadName {
 				display: inline-block;
-				vertical-align: top;
 				width: 100pt;
 			}
 			div.message {
-				width: calc(100%% - 480pt);
 				display: inline-block;
+				width: calc(100%% - 500pt);
 			}
-			form.menubar {
+			header, footer {
 				position: fixed;
-				bottom: 0px;
-				padding: 4pt;
 				width: 100%%;
-				background-color: lightgray;
+				height: 15pt;
 				z-index: 1;
-				margin: 0px;
+			}
+			footer {
+				bottom: 0px;
+				background-color: lightgray;
+			}
+			header {
+				top: 0px;
+				background-color: white;
 			}
 		</style>
 		<script language="JavaScript">
-			function init() {
-				populateLevels();
-				updateLevels();
-			}
-			function populateLevels() {
-				var sel = document.getElementById("Level");
-				var matches = [];
-				for (var i = 0; i < document.styleSheets[0].cssRules.length; i++) {
-					if (document.styleSheets[0].cssRules[i].selectorText == "body")
-						break;
-					matches.push(document.styleSheets[0].cssRules[i].selectorText.charAt(1).toUpperCase() + document.styleSheets[0].cssRules[i].selectorText.substring(2));
-				}
- 				for (var i = 0; i < matches.length; i++) {
- 					var option = document.createElement("option");
- 					option.textContent = matches[i];
- 					option.value = i;
- 					sel.appendChild(option);
- 				}
- 				sel.selectedIndex = %s;
-			}
-			window.onload = init;
-			function enableStyle(i){
+			function updateLevels(i){
 				var style = document.styleSheets[0].cssRules[i].style;
-				style.display = "block";
-			}
-
-			function disableStyle(i){
-				var style = document.styleSheets[0].cssRules[i].style;
-				style.display = "none";
-			}
-
-			function updateLevels(){
-				var sel = document.getElementById("Level");
-				var level = sel.value;
-				for( i = 0; i < level; i++ ) disableStyle(i);
-				for( i = level; i < 5; i++ ) enableStyle(i);
+				if (event.target.checked)
+					style.display = "";
+				else
+					style.display = "none";
 			}
 		</script>
 	</head>
 	<body>
-		<form class="menubar">
-			Minimum Log Level:
-			<select id="Level" onChange="updateLevels()">
-			</select>
-		</form>
-		<div class="log">
-		<div style="position: relative;"><div class="time">Time</div><div class="source">Source</div><div class="threadName">Thread</div><div class="message">Message</div></div>`,
-`		<div class="%s"><time datetime="%s">%s</time><div class="source">%s:%s</div><div class="threadName">%s</div><div class="message">%s</div></div>`,
-`		</div>
+		<header class="logmessage">
+			<div class="time">Time</div>
+			<div class="source">Source</div>
+			<div class="threadName">Thread</div>
+			<div class="message">Message</div>
+		</header>
+		<footer>
+			<form class="menubar">
+				<input type="checkbox" id="level0" onChange="updateLevels(0)" checked> <label for="level0">Trace</label>
+				<input type="checkbox" id="level1" onChange="updateLevels(1)" checked> <label for="level1">Info</label>
+				<input type="checkbox" id="level2" onChange="updateLevels(2)" checked> <label for="level2">Warning</label>
+				<input type="checkbox" id="level3" onChange="updateLevels(3)" checked> <label for="level3">Error</label>
+				<input type="checkbox" id="level4" onChange="updateLevels(4)" checked> <label for="level4">Critical</label>
+				<input type="checkbox" id="level5" onChange="updateLevels(5)" checked> <label for="level5">Fatal</label>
+			</form>
+		</footer>
+		<script language="JavaScript">
+			for (var i = 0; i < 1; i++) {
+				document.styleSheets[0].cssRules[i].style.display = "none";
+				document.getElementById("level" + i).checked = false;
+			}
+		</script>
+		<div class="log">`,
+`
+			<div class="%s logmessage">
+				<time datetime="%s">%s</time>
+				<div class="source">%s:%s</div>
+				<div class="threadName">%s</div>
+				<div class="message">%s</div>
+			</div>`,
+`
+		</div>
 	</body>
 </html>`);
