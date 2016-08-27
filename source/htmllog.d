@@ -1,3 +1,9 @@
+/++
+ + Adds support for logging std.logger messages to HTML files.
+ + Authors: Cameron "Herringway" Ross
+ + Copyright: Copyright Cameron Ross 2016
+ + License: $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ +/
 module htmllog;
 import std.algorithm : among;
 import std.array;
@@ -9,15 +15,34 @@ import std.range : put;
 import std.stdio : File;
 import std.traits : EnumMembers;
 import std.typecons : tuple;
+/++
+ + Logs messages to a .html file. When viewed in a browser, it provides an
+ + easily-searchable and filterable view of logged messages.
+ +/
+public class HTMLLogger : Logger {
+	///File handle being written to.
+	private File handle;
 
-class HTMLLogger : Logger {
-	File handle;
-
+	/++
+	 + Creates a new log file with the specified path and filename.
+	 + Params:
+	 +   logpath = Full path and filename for the log file
+	 +   lv = Minimum message level to write to the log
+	 +   defaultMinDisplayLevel = Minimum message level visible by default
+	 +/
 	this(string logpath, LogLevel lv = LogLevel.all, LogLevel defaultMinDisplayLevel = LogLevel.all) @safe {
 		super(lv);
 		handle.open(logpath, "w");
 		init(defaultMinDisplayLevel);
 	}
+	/++
+	 + Writes a log file using an already-opened handle. Note that having
+	 + pre-existing data in the file will likely cause display errors.
+	 + Params:
+	 +   file = Prepared file handle to write log to
+	 +   lv = Minimum message level to write to the log
+	 +   defaultMinDisplayLevel = Minimum message level visible by default
+	 +/
 	this(File file, LogLevel lv = LogLevel.all, LogLevel defaultMinDisplayLevel = LogLevel.all) @safe {
 		super(lv);
 		handle = file;
@@ -29,10 +54,21 @@ class HTMLLogger : Logger {
 			handle.close();
 		}
 	}
+	/++
+	 + Writes a log message. For internal use by std.experimental.logger.
+	 + Params:
+	 +   payLoad = Data for the log entry being written
+	 + See_Also: $(LINK https://dlang.org/library/std/experimental/logger.html)
+	 +/
 	override public void writeLogMsg(ref LogEntry payLoad) @safe {
 		if (payLoad.logLevel >= logLevel)
 			writeFmt(HTMLTemplate.entry, payLoad.logLevel, payLoad.timestamp.toISOExtString(), payLoad.timestamp.toSimpleString(), payLoad.moduleName, payLoad.line, payLoad.threadId, HtmlEscaper(payLoad.msg));
 	}
+	/++
+	 + Initializes log file by writing header tags, etc.
+	 + Params:
+	 +   minDisplayLevel = Minimum message level visible by default
+	 +/
 	private void init(LogLevel minDisplayLevel) @safe {
 		static bool initialized = false;
 		if (initialized)
@@ -40,15 +76,22 @@ class HTMLLogger : Logger {
 		writeFmt(HTMLTemplate.header, minDisplayLevel.among!(EnumMembers!LogLevel)-1);
 		initialized = true;
 	}
+	/++
+	 + Safe wrapper around handle.lockingTextWriter().
+	 + Params:
+	 +   fmt = Format of string to write
+	 +   args = Values to place into formatted string
+	 +/
 	private void writeFmt(T...)(string fmt, T args) @trusted {
 		formattedWrite(handle.lockingTextWriter(), fmt, args);
 		handle.flush();
 	}
 }
+///
 @safe unittest {
 	auto logger = new HTMLLogger("test.html", LogLevel.trace);
 	logger.fatalHandler = () {};
-	foreach (i; 0..100) {
+	foreach (i; 0..100) { //Log one hundred of each king of message
 		logger.trace("Example - Trace");
 		logger.info("Example - Info");
 		logger.warning("Example - Warning");
@@ -57,9 +100,17 @@ class HTMLLogger : Logger {
 		logger.fatal("Example - Fatal");
 	}
 }
+/++
+ + Escapes special HTML characters. Avoids allocating where possible.
+ +/
 private struct HtmlEscaper {
+	///String to escape
 	string data;
-	void toString(T)(T sink) const {
+	/+
+	 + Converts data to escaped HTML string. Outputs to an output range to avoid
+	 + unnecessary allocation.
+	 +/
+	void toString(T)(T sink) const if (isOutputRange!(T, char)) {
 		foreach (character; data) {
 			switch (character) {
 				default: sink.put(character); break;
@@ -76,6 +127,14 @@ private struct HtmlEscaper {
 		}
 	}
 }
+//
+@safe pure unittest {
+	import std.conv : text;
+	assert(HtmlEscaper("").text == "");
+	assert(HtmlEscaper("\n").text == "<br/>");
+	assert(HtmlEscaper("\x1E").text == "&#30");
+}
+///Template components for log file
 private enum HTMLTemplate = tuple!("header", "entry", "footer")(
 `<!DOCTYPE html>
 <html>
