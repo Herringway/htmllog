@@ -11,7 +11,7 @@ import std.conv : to;
 import std.experimental.logger;
 import std.exception : assumeWontThrow;
 import std.format : format, formattedWrite;
-import std.range : put;
+import std.range : put, isOutputRange,NullSink;
 import std.stdio : File;
 import std.traits : EnumMembers;
 import std.typecons : tuple;
@@ -33,7 +33,7 @@ public class HTMLLogger : Logger {
 	this(string logpath, LogLevel lv = LogLevel.all, LogLevel defaultMinDisplayLevel = LogLevel.all) @safe {
 		super(lv);
 		handle.open(logpath, "w");
-		init(defaultMinDisplayLevel);
+		writeHeader(defaultMinDisplayLevel);
 	}
 	/++
 	 + Writes a log file using an already-opened handle. Note that having
@@ -43,10 +43,12 @@ public class HTMLLogger : Logger {
 	 +   lv = Minimum message level to write to the log
 	 +   defaultMinDisplayLevel = Minimum message level visible by default
 	 +/
-	this(File file, LogLevel lv = LogLevel.all, LogLevel defaultMinDisplayLevel = LogLevel.all) @safe {
+	this(File file, LogLevel lv = LogLevel.all, LogLevel defaultMinDisplayLevel = LogLevel.all) @safe in {
+		assert(file.isOpen);
+	} body {
 		super(lv);
 		handle = file;
-		init(defaultMinDisplayLevel);
+		writeHeader(defaultMinDisplayLevel);
 	}
 	~this() @safe {
 		if (handle.isOpen) {
@@ -69,7 +71,7 @@ public class HTMLLogger : Logger {
 	 + Params:
 	 +   minDisplayLevel = Minimum message level visible by default
 	 +/
-	private void init(LogLevel minDisplayLevel) @safe {
+	private void writeHeader(LogLevel minDisplayLevel) @safe {
 		static bool initialized = false;
 		if (initialized)
 			return;
@@ -110,29 +112,51 @@ private struct HtmlEscaper {
 	 + Converts data to escaped HTML string. Outputs to an output range to avoid
 	 + unnecessary allocation.
 	 +/
-	void toString(T)(T sink) const if (isOutputRange!(T, char)) {
+	void toString(T)(auto ref T sink) const if (isOutputRange!(T, immutable char)) {
 		foreach (character; data) {
 			switch (character) {
-				default: sink.put(character); break;
+				default: put(sink, character); break;
 				case 0: .. case 9:
 				case 11: .. case 12:
 				case 14: .. case 31:
-					assumeWontThrow(formattedWrite(sink, "&#%d", character.to!uint));
+					put(sink, "&#");
+					//since we're guaranteed to have a 1 or 2 digit number, this works
+					put(sink, cast(char)('0'+(character/10)));
+					put(sink, cast(char)('0'+(character%10)));
 					break;
-				case '\n', '\r': sink("<br/>"); break;
-				case '&': sink("&amp;"); break;
-				case '<': sink("&lt;"); break;
-				case '>': sink("&gt;"); break;
+				case '\n', '\r': put(sink, "<br/>"); break;
+				case '&': put(sink, "&amp;"); break;
+				case '<': put(sink, "&lt;"); break;
+				case '>': put(sink, "&gt;"); break;
 			}
 		}
 	}
 }
-//
-@safe pure unittest {
+@safe pure @nogc unittest {
 	import std.conv : text;
-	assert(HtmlEscaper("").text == "");
-	assert(HtmlEscaper("\n").text == "<br/>");
-	assert(HtmlEscaper("\x1E").text == "&#30");
+	struct StaticBuf(size_t Size) {
+		char[Size] data;
+		size_t offset;
+		void put(immutable char character) @nogc {
+			data[offset] = character;
+			offset++;
+		}
+	}
+	{
+		auto buf = StaticBuf!0();
+		HtmlEscaper("").toString(buf);
+		assert(buf.data == "");
+	}
+	{
+		auto buf = StaticBuf!5();
+		HtmlEscaper("\n").toString(buf);
+		assert(buf.data == "<br/>");
+	}
+	{
+		auto buf = StaticBuf!4();
+		HtmlEscaper("\x1E").toString(buf);
+		assert(buf.data == "&#30");
+	}
 }
 ///Template components for log file
 private enum HTMLTemplate = tuple!("header", "entry", "footer")(
