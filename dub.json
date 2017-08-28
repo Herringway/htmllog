@@ -2,6 +2,7 @@
 	"name": "htmllog",
 	"description": "Simple HTML log format for std.experimental.logger.",
 	"copyright": "Copyright © 2016, Cameron",
+	"license": "BSL-1.0",
 	"authors": ["Cameron \"Herringway\" Ross"],
 	"-ddoxFilterArgs": [ "--unittest-examples", "--min-protection=Public" ]
 }
