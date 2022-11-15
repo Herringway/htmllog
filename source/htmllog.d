@@ -43,9 +43,9 @@ public class HTMLLogger : Logger {
 	 +   lv = Minimum message level to write to the log
 	 +   defaultMinDisplayLevel = Minimum message level visible by default
 	 +/
-	this(File file, LogLevel lv = LogLevel.all, LogLevel defaultMinDisplayLevel = LogLevel.all) @safe in {
-		assert(file.isOpen);
-	} body {
+	this(File file, LogLevel lv = LogLevel.all, LogLevel defaultMinDisplayLevel = LogLevel.all) @safe
+		in(file.isOpen)
+	{
 		super(lv);
 		handle = file;
 		writeHeader(defaultMinDisplayLevel);
