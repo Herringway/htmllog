@@ -63,8 +63,9 @@ public class HTMLLogger : Logger {
 	 + See_Also: $(LINK https://dlang.org/library/std/experimental/logger.html)
 	 +/
 	override public void writeLogMsg(ref LogEntry payLoad) @safe {
-		if (payLoad.logLevel >= logLevel)
+		if (payLoad.logLevel >= logLevel) {
 			writeFmt(HTMLTemplate.entry, payLoad.logLevel, payLoad.timestamp.toISOExtString(), payLoad.timestamp.toSimpleString(), payLoad.moduleName, payLoad.line, payLoad.threadId, HtmlEscaper(payLoad.msg));
+		}
 	}
 	/++
 	 + Initializes log file by writing header tags, etc.
@@ -73,8 +74,9 @@ public class HTMLLogger : Logger {
 	 +/
 	private void writeHeader(LogLevel minDisplayLevel) @safe {
 		static bool initialized = false;
-		if (initialized)
+		if (initialized) {
 			return;
+		}
 		writeFmt(HTMLTemplate.header, minDisplayLevel.among!(EnumMembers!LogLevel)-1);
 		initialized = true;
 	}
